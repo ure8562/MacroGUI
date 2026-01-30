@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "macros": [
+    {
+      "name": "매크로1",
+      "steps": [
+        { "type": "Delay",   "key": "-",    "durationMs": 300 },
+        { "type": "KeyDown", "key": "LEFT", "durationMs": 0 },
+        { "type": "Tap",     "key": "C",    "durationMs": 50 },
+        { "type": "KeyUp",   "key": "LEFT", "durationMs": 0 }
+      ]
+    }
+  ]
+}
