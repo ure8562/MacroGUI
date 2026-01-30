@@ -14,8 +14,38 @@ namespace MacroGUI.ViewModels
     public sealed class MainViewModel : INotifyPropertyChanged
     {
         public event PropertyChangedEventHandler? PropertyChanged;
+        private string _selectedPresetFile = "";
+        public string SelectedPresetFile
+        {
+            get { return _selectedPresetFile; }
+            set { _selectedPresetFile = value; OnPropertyChanged(); }
+        }
+
+        private string _presetNewName = "macros_new.json";
+        public string PresetNewName
+        {
+            get { return _presetNewName; }
+            set { _presetNewName = value; OnPropertyChanged(); }
+        }
+        public ObservableCollection<string> PresetFiles { get; } = new ObservableCollection<string>();
+
+        private bool _applyAlso = true;
+        public bool ApplyAlso
+        {
+            get { return _applyAlso; }
+            set { _applyAlso = value; OnPropertyChanged(); }
+        }
+
+
+
         public ICommand RefreshCommand { get; }
         public ICommand SaveCommand { get; }
+        public ICommand PresetRefreshCommand { get; }
+        public ICommand PresetLoadCommand { get; }
+        public ICommand PresetApplyCommand { get; }
+        public ICommand PresetSaveCommand { get; }
+        public ICommand AddMacroCommand { get; }
+
 
         private readonly PiSyncService _sync;
         private bool _isConnected;
@@ -76,6 +106,12 @@ namespace MacroGUI.ViewModels
 
             RefreshCommand = new AsyncCommand(OnRefreshAsync);
             SaveCommand = new AsyncCommand(OnSaveAsync);
+            PresetRefreshCommand = new AsyncCommand(RefreshPresetListAsync);
+            PresetLoadCommand = new AsyncCommand(LoadPresetAsync);
+            PresetApplyCommand = new AsyncCommand(ApplyPresetAsync);
+            PresetSaveCommand = new AsyncCommand(SavePresetAsync);
+            AddMacroCommand = new AsyncCommand(AddMacroAsync);
+
         }
 
         /// <summary>
@@ -123,6 +159,82 @@ namespace MacroGUI.ViewModels
         {
             await _sync.SaveMacrosAsync(CancellationToken.None);
             OnPropertyChanged(nameof(LastSyncMessage));
+        }
+        private async Task RefreshPresetListAsync()
+        {
+            List<string> list = await _sync.ListPresetFilesAsync(CancellationToken.None);
+
+            PresetFiles.Clear();
+            foreach (string f in list)
+                PresetFiles.Add(f);
+
+            if (PresetFiles.Count > 0 && string.IsNullOrWhiteSpace(SelectedPresetFile))
+                SelectedPresetFile = PresetFiles[0];
+
+            LastSyncMessage = _sync.LastMessage;
+            OnPropertyChanged(nameof(LastSyncMessage));
+        }
+
+        private async Task LoadPresetAsync()
+        {
+            if (string.IsNullOrWhiteSpace(SelectedPresetFile))
+                return;
+
+            await _sync.LoadPresetAsync(SelectedPresetFile, CancellationToken.None);
+
+            LastSyncMessage = _sync.LastMessage;
+            OnPropertyChanged(nameof(LastSyncMessage));
+        }
+
+        private async Task ApplyPresetAsync()
+        {
+            if (string.IsNullOrWhiteSpace(SelectedPresetFile))
+                return;
+
+            await _sync.ApplyPresetAsync(SelectedPresetFile, CancellationToken.None);
+
+            LastSyncMessage = _sync.LastMessage;
+            OnPropertyChanged(nameof(LastSyncMessage));
+        }
+
+        private async Task SavePresetAsync()
+        {
+            string name = (PresetNewName ?? "").Trim();
+
+            if (name.Length == 0)
+                name = "macros_new.json";
+
+            if (!name.StartsWith("macros_", StringComparison.OrdinalIgnoreCase))
+                name = "macros_" + name;
+
+            if (!name.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                name = name + ".json";
+
+            PresetNewName = name;
+            OnPropertyChanged(nameof(PresetNewName));
+
+            await _sync.SavePresetAsync(name, ApplyAlso, CancellationToken.None);
+
+            LastSyncMessage = _sync.LastMessage;
+            OnPropertyChanged(nameof(LastSyncMessage));
+
+            await RefreshPresetListAsync();
+        }
+        private Task AddMacroAsync()
+        {
+            int n = Macros.Count + 1;
+            MacroVM m = new MacroVM($"NewMacro{n}");
+
+            // 기본 Step 하나 넣어두면 UI 확인이 쉬움(원하면 제거 가능)
+            m.Steps.Add(new MacroStepVM("Delay", "-", 200));
+
+            Macros.Add(m);
+            SelectedMacro = m;
+
+            LastSyncMessage = "Macro added (not saved yet)";
+            OnPropertyChanged(nameof(LastSyncMessage));
+
+            return Task.CompletedTask;
         }
     }
 }

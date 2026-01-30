@@ -73,11 +73,11 @@
 
                     <Button Grid.Column="2" Width="80" Height="34"
                             Content="+ 추가"
-                            Margin="0,0,0,0"/>
+                            Margin="0,0,0,0" Command="{Binding AddMacroCommand}"/>
                     <Button x:Name="UpdateButton"
                             Grid.Column="4" Width="80" Height="34"
                             Content="업데이트" Margin="0,0,0,0"
-                            Click="UpdateButton_Click"/>
+                            Command="{Binding RefreshCommand}"/>
                 </Grid>
 
                 <!-- Selected macro info -->
@@ -122,10 +122,40 @@
 
             <!-- Right Buttons -->
             <StackPanel Grid.Column="4" VerticalAlignment="Top">
-                <Button Height="56" Margin="0,0,0,10" Content="매크로 수정"/>
-                <Button Height="56" Margin="0,0,0,10" Content="Key Setting"/>
-                <Button Height="56" Margin="0,0,0,10" Content="기타1"/>
-                <Button Height="56" Margin="0,0,0,10" Content="기타2"/>
+
+                <!-- 프리셋 목록 갱신 -->
+                <Button Height="44" Margin="0,0,0,10"
+            Content="프리셋 목록 갱신"
+            Command="{Binding PresetRefreshCommand}"/>
+
+                <!-- 프리셋 선택 -->
+                <ComboBox Height="34" Margin="0,0,0,10"
+              ItemsSource="{Binding PresetFiles}"
+              SelectedItem="{Binding SelectedPresetFile}"/>
+
+                <!-- 불러오기(UI에 로드) -->
+                <Button Height="44" Margin="0,0,0,10"
+            Content="불러오기"
+            Command="{Binding PresetLoadCommand}"/>
+
+                <!-- 적용(macros.json 교체) -->
+                <Button Height="44" Margin="0,0,0,16"
+            Content="적용(Pi)"
+            Command="{Binding PresetApplyCommand}"/>
+
+                <!-- 저장 이름 -->
+                <TextBox Height="32" Margin="0,0,0,8"
+             Text="{Binding PresetNewName, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <CheckBox Margin="0,0,0,10"
+              Content="저장 후 즉시 적용"
+              IsChecked="{Binding ApplyAlso}"/>
+
+                <!-- 저장 -->
+                <Button Height="44" Margin="0,0,0,10"
+            Content="저장"
+            Command="{Binding PresetSaveCommand}"/>
+
             </StackPanel>
         </Grid>
 

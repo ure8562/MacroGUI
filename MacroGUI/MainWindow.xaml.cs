@@ -50,9 +50,5 @@ namespace MacroGUI
             await _vm.OnConnectionChangedAsync(connected);
         }
 
-        private async void UpdateButton_Click(object sender, RoutedEventArgs e)
-        {
-            await _vm.RefreshAsync();
-        }
     }
 }
