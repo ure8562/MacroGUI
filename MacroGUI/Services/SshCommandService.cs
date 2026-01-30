@@ -74,6 +74,79 @@ namespace MacroGUI.Services
                 return SshCommandResult.Fail(-9, "", ex.Message);
             }
         }
+
+        public async Task<SshCommandResult> RunWithInputAsync(string remoteCommand, string stdinText, int timeoutMs, CancellationToken token)
+        {
+            string safeCmd = EscapeForDoubleQuotes(remoteCommand);
+
+            string args =
+                "-o BatchMode=yes " +
+                "-o ConnectTimeout=1 " +
+                "-o StrictHostKeyChecking=accept-new " +
+                $"{User}@{Host} \"{safeCmd}\"";
+
+            ProcessStartInfo psi = new ProcessStartInfo
+            {
+                FileName = "ssh",
+                Arguments = args,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                RedirectStandardInput = true
+            };
+
+            try
+            {
+                using Process p = new Process { StartInfo = psi };
+
+                if (!p.Start())
+                    return SshCommandResult.Fail(-1, "", "ssh start failed");
+
+                // stdin 전송
+                if (!string.IsNullOrEmpty(stdinText))
+                {
+                    await p.StandardInput.WriteAsync(stdinText);
+                }
+                p.StandardInput.Close();
+
+                Task<string> outTask = p.StandardOutput.ReadToEndAsync();
+                Task<string> errTask = p.StandardError.ReadToEndAsync();
+
+                Task waitTask = p.WaitForExitAsync(token);
+                Task timeoutTask = Task.Delay(timeoutMs, token);
+
+                Task done = await Task.WhenAny(waitTask, timeoutTask);
+                if (done != waitTask)
+                {
+                    try { p.Kill(true); } catch { }
+                    return SshCommandResult.Fail(-2, "", "timeout");
+                }
+
+                string stdout = await outTask;
+                string stderr = await errTask;
+
+                if (p.ExitCode == 0)
+                    return SshCommandResult.Ok(stdout, stderr);
+
+                return SshCommandResult.Fail(p.ExitCode, stdout, stderr);
+            }
+            catch (OperationCanceledException)
+            {
+                return SshCommandResult.Fail(-3, "", "canceled");
+            }
+            catch (Exception ex)
+            {
+                return SshCommandResult.Fail(-9, "", ex.Message);
+            }
+        }
+
+        private static string EscapeForDoubleQuotes(string s)
+        {
+            if (string.IsNullOrEmpty(s))
+                return "";
+            return s.Replace("\\", "\\\\").Replace("\"", "\\\"");
+        }
     }
 
     public sealed class SshCommandResult

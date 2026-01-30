@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Input;
 using MacroGUI.Services;
 
 namespace MacroGUI.ViewModels
@@ -13,6 +14,8 @@ namespace MacroGUI.ViewModels
     public sealed class MainViewModel : INotifyPropertyChanged
     {
         public event PropertyChangedEventHandler? PropertyChanged;
+        public ICommand RefreshCommand { get; }
+        public ICommand SaveCommand { get; }
 
         private readonly PiSyncService _sync;
         private bool _isConnected;
@@ -70,6 +73,9 @@ namespace MacroGUI.ViewModels
 
             // default 선택 = 1번
             SelectedMacro = m1;
+
+            RefreshCommand = new AsyncCommand(OnRefreshAsync);
+            SaveCommand = new AsyncCommand(OnSaveAsync);
         }
 
         /// <summary>
@@ -95,16 +101,28 @@ namespace MacroGUI.ViewModels
             _wasConnected = connected;
         }
 
-        public Task RefreshAsync()
+        public async Task RefreshAsync()
         {
             // 업데이트 버튼 눌렀을 때 호출
-            return _sync.RefreshAsync(CancellationToken.None);
+            await _sync.RefreshAsync(CancellationToken.None);
             LastSyncMessage = _sync.LastMessage;
         }
 
         private void OnPropertyChanged([CallerMemberName] string? name = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        }
+
+        private async Task OnRefreshAsync()
+        {
+            await _sync.RefreshAsync(CancellationToken.None);
+            OnPropertyChanged(nameof(LastSyncMessage));
+        }
+
+        private async Task OnSaveAsync()
+        {
+            await _sync.SaveMacrosAsync(CancellationToken.None);
+            OnPropertyChanged(nameof(LastSyncMessage));
         }
     }
 }
