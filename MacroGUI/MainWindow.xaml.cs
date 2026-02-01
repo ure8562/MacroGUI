@@ -31,6 +31,7 @@ namespace MacroGUI
 
             _ssh = new SshConnectionService("192.168.0.22", "bong", TimeSpan.FromSeconds(1));
             _ssh.ConnectionChanged += OnConnectionChanged;
+            _ssh.KeyboardConnectionChanged += OnKeyboardConnectionChanged;
             _ssh.Start();
         }
         protected override void OnClosed(EventArgs e)
@@ -43,12 +44,39 @@ namespace MacroGUI
         {
             Dispatcher.Invoke(() =>
             {
-                StatusTextBlock.Text = connected ? "Connected" : "Disconnected";
-                StatusDot.Fill = connected ? Brushes.LimeGreen : Brushes.IndianRed;
+                // SSH 상태
+                SshStatusTextBlock.Text = connected ? "SSH: Connected" : "SSH: Disconnected";
+                SshDot.Fill = connected ? Brushes.LimeGreen : Brushes.IndianRed;
+
+                // ✅ SSH 끊기면 키보드도 강제 Disconnected
+                if (!connected)
+                {
+                    KbdStatusTextBlock.Text = "KBD: Disconnected";
+                    KbdDot.Fill = Brushes.IndianRed;
+                }
             });
 
             await _vm.OnConnectionChangedAsync(connected);
         }
+        private void OnKeyboardConnectionChanged(bool connected)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                KbdStatusTextBlock.Text = connected ? "KBD: Connected" : "KBD: Disconnected";
+                KbdDot.Fill = connected ? Brushes.LimeGreen : Brushes.IndianRed;
+            });
+        }
+        
+        private void ListBoxItem_PreviewMouseRightButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            System.Windows.Controls.ListBoxItem item = sender as System.Windows.Controls.ListBoxItem;
+            if (item == null)
+                return;
 
+            item.IsSelected = true;
+            item.Focus();
+
+            e.Handled = false; // ContextMenu 뜨는 거 방해하지 않게
+        }
     }
 }

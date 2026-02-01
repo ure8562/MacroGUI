@@ -20,6 +20,8 @@ namespace MacroGUI.Services
         public string User { get; }
 
         public bool IsConnected { get; private set; }
+        public bool IsKeyboardConnected { get; private set; }
+        public event Action<bool>? KeyboardConnectionChanged;
 
         private readonly TimeSpan _interval;
         private CancellationTokenSource? _cts;
@@ -91,14 +93,14 @@ namespace MacroGUI.Services
 
         private async Task<bool> CheckOnceAsync(CancellationToken token)
         {
-            // BatchMode=yes : 비밀번호/프롬프트 없이 실패 처리
-            // ConnectTimeout=1 : 1초 내 연결 안되면 실패
-            // StrictHostKeyChecking=accept-new : 최초 연결 시 known_hosts 자동 등록
+            string remoteCmd =
+                "printf 'status\\n' > /tmp/proxykbd_cmd; cat /tmp/proxykbd_status";
+
             string args =
                 $"-o BatchMode=yes " +
                 $"-o ConnectTimeout=1 " +
                 $"-o StrictHostKeyChecking=accept-new " +
-                $"{User}@{Host} \"echo ok\"";
+                $"{User}@{Host} \"{remoteCmd}\"";
 
             ProcessStartInfo psi = new ProcessStartInfo
             {
@@ -116,6 +118,9 @@ namespace MacroGUI.Services
                 if (!p.Start())
                     return false;
 
+                Task<string> readStdout = p.StandardOutput.ReadToEndAsync();
+                Task<string> readStderr = p.StandardError.ReadToEndAsync();
+
                 Task waitTask = p.WaitForExitAsync(token);
                 Task timeoutTask = Task.Delay(1500, token);
 
@@ -126,12 +131,29 @@ namespace MacroGUI.Services
                     return false;
                 }
 
-                return p.ExitCode == 0;
+                if (p.ExitCode != 0)
+                    return false;
+
+                string stdout = await readStdout;
+                // string stderr = await readStderr; // 필요하면 로그용
+
+                bool kbd =
+                    stdout.IndexOf("connected", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                    stdout.IndexOf("disconnected", StringComparison.OrdinalIgnoreCase) < 0;
+
+                if (kbd != IsKeyboardConnected)
+                {
+                    IsKeyboardConnected = kbd;
+                    KeyboardConnectionChanged?.Invoke(kbd);
+                }
+
+                return true;
             }
             catch
             {
                 return false;
             }
         }
+
     }
 }

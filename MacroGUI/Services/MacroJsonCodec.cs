@@ -29,6 +29,19 @@ namespace MacroGUI.Services
 
                 PiMacro macro = new PiMacro();
                 macro.Name = m.Name ?? string.Empty;
+                macro.Memo = m.Memo ?? string.Empty;
+
+                macro.Trigger = new PiTrigger();
+                macro.Trigger.Keys = new List<string>();
+
+                foreach (string k in m.TriggerKeys)
+                {
+                    if (string.IsNullOrWhiteSpace(k))
+                        continue;
+
+                    macro.Trigger.Keys.Add(k.Trim());
+                }
+
                 macro.Steps = new List<PiStep>();
 
                 foreach (MacroStepVM s in m.Steps)
@@ -38,8 +51,35 @@ namespace MacroGUI.Services
 
                     PiStep step = new PiStep();
                     step.Type = s.Type ?? string.Empty;
-                    step.Key = s.Key ?? string.Empty;
-                    step.DurationMs = s.DurationMs;
+
+                    if (step.Type.Equals("TAP", StringComparison.OrdinalIgnoreCase))
+                    {
+                        step.Key = s.Key ?? string.Empty;
+                        step.DurationMs = null;   // ❗ 아예 안 씀
+                    }
+                    else if (step.Type.Equals("DELAY", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Delay는 key가 필요 없으니 비움 (null이면 위 IgnoreCondition으로 출력 안 됨)
+                        step.Key = null;
+
+                        int minMs = s.MinMs;
+                        int maxMs = s.MaxMs;
+
+                        // ✅ min/max가 있으면 range 저장
+                        if (minMs > 0 || maxMs > 0)
+                        {
+                            step.MinMs = minMs;
+                            step.MaxMs = maxMs;
+                            step.DurationMs = null;
+                        }
+                        else
+                        {
+                            // ✅ range 없으면 duration 저장
+                            step.DurationMs = s.DurationMs;
+                            step.MinMs = null;
+                            step.MaxMs = null;
+                        }
+                    }
                     macro.Steps.Add(step);
                 }
 
@@ -49,6 +89,7 @@ namespace MacroGUI.Services
             JsonSerializerOptions opt = new JsonSerializerOptions();
             opt.WriteIndented = true;
             opt.Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping;
+            opt.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
 
             return JsonSerializer.Serialize(root, opt);
         }
@@ -71,6 +112,19 @@ namespace MacroGUI.Services
             {
                 string name = m.Name ?? string.Empty;
                 MacroVM vm = new MacroVM(name);
+                vm.Memo = m.Memo ?? string.Empty;
+                vm.TriggerKeys.Clear();
+
+                if (m.Trigger != null && m.Trigger.Keys != null)
+                {
+                    foreach (string k in m.Trigger.Keys)
+                    {
+                        if (string.IsNullOrWhiteSpace(k))
+                            continue;
+
+                        vm.TriggerKeys.Add(k.Trim());
+                    }
+                }
 
                 if (m.Steps != null)
                 {
@@ -78,9 +132,28 @@ namespace MacroGUI.Services
                     {
                         string type = s.Type ?? string.Empty;
                         string key = s.Key ?? string.Empty;
-                        int durationMs = s.DurationMs;
 
-                        vm.Steps.Add(new MacroStepVM(type, key, durationMs));
+                        // DELAY
+                        if (string.Equals(type, "DELAY", StringComparison.OrdinalIgnoreCase))
+                        {
+                            int minMs = s.MinMs ?? 0;
+                            int maxMs = s.MaxMs ?? 0;
+                            int durationMs = s.DurationMs ?? 0;
+
+                            if (string.IsNullOrWhiteSpace(key))
+                                key = "-";
+
+                            // ✅ min/max가 있으면 범위 생성자 사용 → ToString에서 50~130ms 출력
+                            if (minMs > 0 || maxMs > 0)
+                                vm.Steps.Add(new MacroStepVM(type, key, 0, minMs, maxMs));
+                            else
+                                vm.Steps.Add(new MacroStepVM(type, key, durationMs));
+
+                            continue;
+                        }
+
+                        // TAP / KEYDOWN / KEYUP etc.
+                        vm.Steps.Add(new MacroStepVM(type, key, 0));
                     }
                 }
 
@@ -88,6 +161,12 @@ namespace MacroGUI.Services
             }
 
             return list;
+        }
+
+        private sealed class PiTrigger
+        {
+            [JsonPropertyName("keys")]
+            public List<string>? Keys { get; set; }
         }
 
         private sealed class PiMacrosRoot
@@ -104,11 +183,18 @@ namespace MacroGUI.Services
             [JsonPropertyName("name")]
             public string? Name { get; set; }
 
+            [JsonPropertyName("memo")]
+            public string? Memo { get; set; }   // ✅ 추가
+
+            // ✅ 추가
+            [JsonPropertyName("trigger")]
+            public PiTrigger? Trigger { get; set; }
+
             [JsonPropertyName("steps")]
             public List<PiStep>? Steps { get; set; }
         }
 
-        private sealed class PiStep
+        internal sealed class PiStep
         {
             [JsonPropertyName("type")]
             public string? Type { get; set; }
@@ -117,7 +203,13 @@ namespace MacroGUI.Services
             public string? Key { get; set; }
 
             [JsonPropertyName("durationMs")]
-            public int DurationMs { get; set; }
+            public int? DurationMs { get; set; }   // 🔴 int → int?
+
+            [JsonPropertyName("minMs")]
+            public int? MinMs { get; set; }        // ✅ 추가
+
+            [JsonPropertyName("maxMs")]
+            public int? MaxMs { get; set; }        // ✅ 추가
         }
     }
 }

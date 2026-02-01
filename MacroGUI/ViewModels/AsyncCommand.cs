@@ -39,5 +39,7 @@ namespace MacroGUI.ViewModels
                 CanExecuteChanged?.Invoke(this, EventArgs.Empty);
             }
         }
+
+
     }
 }

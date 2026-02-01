@@ -3,9 +3,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:MacroGUI"
+        xmlns:local="clr-namespace:MacroGUI" xmlns:local1="clr-namespace:MacroGUI.ViewModels"
         mc:Ignorable="d"
-        Title="Controller" Height="450" Width="800" WindowStartupLocation="CenterScreen">
+        Title="Controller" Height="700" Width="800" WindowStartupLocation="CenterScreen" x:Name="Root"
+        >
 
     <DockPanel>
 
@@ -13,22 +14,36 @@
         <Border DockPanel.Dock="Bottom" Height="32" Background="#2E7D32">
             <Grid Margin="10,0">
                 <Grid.ColumnDefinitions>
+                    <!-- SSH dot + text -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Dot -->
-                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="6"/>
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Connected/Disconnected -->
-                    <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="14"/>
+
+                    <!-- KBD dot + text -->
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="6"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="14"/>
+
                     <!-- LastSyncMessage -->
+                    <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <Ellipse x:Name="StatusDot" Width="10" Height="10" VerticalAlignment="Center" Fill="IndianRed"/>
-                <TextBlock x:Name="StatusTextBlock" Grid.Column="2"
-                           VerticalAlignment="Center" Foreground="White"
-                           Text="Disconnected"/>
-                
-                <TextBlock Grid.Column="4"
+                <!-- SSH -->
+                <Ellipse x:Name="SshDot" Width="10" Height="10" VerticalAlignment="Center" Fill="IndianRed"/>
+                <TextBlock x:Name="SshStatusTextBlock" Grid.Column="2"
+                   VerticalAlignment="Center" Foreground="White"
+                   Text="SSH: Disconnected"/>
+
+                <!-- KBD -->
+                <Ellipse x:Name="KbdDot" Grid.Column="4" Width="10" Height="10" VerticalAlignment="Center" Fill="IndianRed"/>
+                <TextBlock x:Name="KbdStatusTextBlock" Grid.Column="6"
+                   VerticalAlignment="Center" Foreground="White"
+                   Text="KBD: Disconnected"/>
+
+                <!-- LastSyncMessage (기존 그대로) -->
+                <TextBlock Grid.Column="8"
                    VerticalAlignment="Center"
                    Foreground="#C8E6C9"
                    FontSize="11"
@@ -37,7 +52,7 @@
         </Border>
 
         <!-- Top Header -->
-        <Border DockPanel.Dock="Top" Height="56" Background="#F5F5F5">
+        <Border DockPanel.Dock="Top" Height="76" Background="#F5F5F5">
             <Grid Margin="12,8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="600"/>
@@ -48,22 +63,67 @@
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
+                        <!-- 탭 영역 -->
                         <ColumnDefinition Width="10"/>
+
                         <ColumnDefinition Width="Auto"/>
+                        <!-- + 추가 -->
                         <ColumnDefinition Width="5"/>
                         <ColumnDefinition Width="Auto"/>
+                        <!-- 업데이트 -->
+
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <!-- ◀ -->
+                        <ColumnDefinition Width="4"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <!-- ▶ -->
                     </Grid.ColumnDefinitions>
 
                     <ListBox x:Name="MacroList"
-                         ItemsSource="{Binding Macros}"
-                         SelectedItem="{Binding SelectedMacro}"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                         ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                     ItemsSource="{Binding Macros}"
+                     SelectedItem="{Binding SelectedMacro}"
+                     ScrollViewer.HorizontalScrollBarVisibility="Visible"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto">
+
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+
+                                <!-- ✅ ListBoxItem은 VisualTree 안이라 AncestorType=ListBox가 됨 -->
+                                <Setter Property="Tag"
+                Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ListBox}}"/>
+
+                                <Setter Property="ContextMenu">
+                                    <Setter.Value>
+                                        <ContextMenu>
+                                            <MenuItem Header="이름 변경"
+                                                      Command="{Binding PlacementTarget.Tag.MacroRenameCommand,
+                                                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                      CommandParameter="{Binding PlacementTarget.DataContext,
+                                                                                RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                            <MenuItem Header="핫키 변경"
+                                              Command="{Binding PlacementTarget.Tag.MacroHotkeyCommand,
+                                                                RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                              CommandParameter="{Binding PlacementTarget.DataContext,
+                                                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                            <MenuItem Header="삭제"
+                                                      Command="{Binding PlacementTarget.Tag.MacroDeleteCommand,
+                                                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                      CommandParameter="{Binding PlacementTarget.DataContext,
+                                                                                RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                        </ContextMenu>
+                                    </Setter.Value>
+                                </Setter>
+
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+
                         <ListBox.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <StackPanel Orientation="Horizontal"/>
                             </ItemsPanelTemplate>
                         </ListBox.ItemsPanel>
+
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding Name}" Margin="14,8"/>
@@ -78,6 +138,21 @@
                             Grid.Column="4" Width="80" Height="34"
                             Content="업데이트" Margin="0,0,0,0"
                             Command="{Binding RefreshCommand}"/>
+                    <Button Grid.Column="6"
+                            Width="26" Height="26"
+                            Content="◀"
+                            FontSize="12"
+                            VerticalAlignment="Center"
+                            Command="{Binding MacroMoveUpCommand}"
+                            IsEnabled="{Binding IsMacroMoveUpEnabled}"/>
+
+                                        <Button Grid.Column="8"
+                            Width="26" Height="26"
+                            Content="▶"
+                            FontSize="12"
+                            VerticalAlignment="Center"
+                            Command="{Binding MacroMoveDownCommand}"
+                            IsEnabled="{Binding IsMacroMoveDownEnabled}"/>
                 </Grid>
 
                 <!-- Selected macro info -->
@@ -106,55 +181,183 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <TextBlock Text="매크로 sequence" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
 
-                    <!-- 나중에 DataGrid로 교체 -->
-                    <ListBox Grid.Row="1" ItemsSource="{Binding SelectedMacro.Steps}"/>
+                        <TextBlock Text="매크로 sequence"
+                           FontWeight="SemiBold"/>
+
+                                    <TextBlock Grid.Column="1"
+                           Text="{Binding SelectedMacro.TriggerText}"
+                           FontWeight="SemiBold"
+                           Opacity="0.8"/>
+                    </Grid>
+
+                    <ListBox Grid.Row="1"
+                         ItemsSource="{Binding SelectedMacro.Steps}"
+                         SelectedItem="{Binding SelectedStep, Mode=TwoWay}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding DisplayText}"/>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+
+                    <!-- Step Controls -->
+                    <Grid Grid.Row="2" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="7"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="7"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="6"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="6"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Button Grid.Column="0" Height="34"
+                            Content="추가"
+                            Command="{Binding StepAddCommand}"/>
+
+                         <Button Grid.Column="2" Height="34"
+                            Content="삭제"
+                            Command="{Binding StepDeleteCommand}"/>
+
+                        <!-- 타입 콤보: 폭 살짝 줄임 -->
+                        <ComboBox Grid.Column="4"
+                          Width="78"
+                          Height="30"
+                          HorizontalContentAlignment="Center"
+                          VerticalContentAlignment="Center"
+                          ItemsSource="{Binding StepTypeItems}"
+                          SelectedItem="{Binding NewStepType}"/>
+
+                        <!-- 위로 -->
+                        <Button Grid.Column="6"
+                        Width="28" Height="30"
+                        Content="▲"
+                        FontSize="12"
+                        Padding="0"
+                        Command="{Binding StepMoveUpCommand}"
+                        IsEnabled="{Binding IsStepMoveUpEnabled}"/>
+
+                        <!-- 아래로 -->
+                        <Button Grid.Column="8"
+                        Width="28" Height="30"
+                        Content="▼"
+                        FontSize="12"
+                        Padding="0"
+                        Command="{Binding StepMoveDownCommand}"
+                        IsEnabled="{Binding IsStepMoveDownEnabled}"/>
+                    </Grid>
                 </Grid>
             </Border>
 
-            <!-- Secondary Panel (예: 실행 로그/프리뷰) -->
-            <Border Grid.Column="2" Background="#E3F2FD" CornerRadius="6" Padding="10">
-                <TextBlock Text="(예: 실행 프리뷰 / 로그 / 설명 영역)" VerticalAlignment="Center" HorizontalAlignment="Center"/>
-            </Border>
+            <!-- Secondary Panel: Edit + Memo -->
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="1*"/>
+                    <RowDefinition Height="12"/>
+                    <RowDefinition Height="1*"/>
+                </Grid.RowDefinitions>
 
-            <!-- Right Buttons -->
-            <StackPanel Grid.Column="4" VerticalAlignment="Top">
+                <!-- Edit Panel -->
+                <Border Grid.Row="0" Background="#E3F2FD" CornerRadius="6" Padding="10">
+                    <local:StepEditPanel SelectedStep="{Binding SelectedStep}"/>
+                </Border>
 
-                <!-- 프리셋 목록 갱신 -->
-                <Button Height="44" Margin="0,0,0,10"
-            Content="프리셋 목록 갱신"
-            Command="{Binding PresetRefreshCommand}"/>
+                <!-- Memo Panel -->
+                <Border Grid.Row="2" Background="#E3F2FD" CornerRadius="6" Padding="10">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
 
-                <!-- 프리셋 선택 -->
-                <ComboBox Height="34" Margin="0,0,0,10"
-              ItemsSource="{Binding PresetFiles}"
-              SelectedItem="{Binding SelectedPresetFile}"/>
+                        <TextBlock Text="설명 / 메모" FontWeight="SemiBold" Margin="0,0,0,8"/>
 
-                <!-- 불러오기(UI에 로드) -->
-                <Button Height="44" Margin="0,0,0,10"
-            Content="불러오기"
-            Command="{Binding PresetLoadCommand}"/>
+                        <TextBox Grid.Row="1"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         Text="{Binding SelectedMacro.Memo, UpdateSourceTrigger=PropertyChanged}"/>
+                    </Grid>
+                </Border>
+            </Grid>
 
-                <!-- 적용(macros.json 교체) -->
-                <Button Height="44" Margin="0,0,0,16"
-            Content="적용(Pi)"
-            Command="{Binding PresetApplyCommand}"/>
+            <StackPanel Grid.Column="4" VerticalAlignment="Top" Margin="0,0,0,0">
 
-                <!-- 저장 이름 -->
-                <TextBox Height="32" Margin="0,0,0,8"
-             Text="{Binding PresetNewName, UpdateSourceTrigger=PropertyChanged}"/>
+                <!-- 1) Preset List -->
+                <Border Background="#F6F6F6" CornerRadius="6" Padding="10" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="프리셋" FontWeight="SemiBold" Margin="0,0,0,8"/>
 
-                <CheckBox Margin="0,0,0,10"
-              Content="저장 후 즉시 적용"
-              IsChecked="{Binding ApplyAlso}"/>
+                        <Button Height="30" Margin="0,0,0,8"
+                    Content="프리셋 목록 갱신"
+                    Command="{Binding PresetRefreshCommand}"/>
 
-                <!-- 저장 -->
-                <Button Height="44" Margin="0,0,0,10"
-            Content="저장"
-            Command="{Binding PresetSaveCommand}"/>
+                        <ComboBox Height="28" Margin="0,0,0,0"
+                      VerticalContentAlignment="Center"
+                      ItemsSource="{Binding PresetFiles}"
+                      SelectedItem="{Binding SelectedPresetFile}"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- 2) Actions -->
+                <Border Background="#F6F6F6" CornerRadius="6" Padding="10" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="작업" FontWeight="SemiBold" Margin="0,0,0,8"/>
+
+                        <Button Height="30" Margin="0,0,0,8"
+                    Content="덮어쓰기"
+                    Command="{Binding PresetOverwriteCommand}"/>
+
+                        <!-- 삭제는 위험 동작: 색으로만 약간 강조 -->
+                        <Button Height="30" Margin="0,0,0,8"
+                    Content="삭제"
+                    Command="{Binding PresetDeleteCommand}"
+                    Background="#FFECEC"
+                    BorderBrush="#FFB3B3"/>
+
+                        <Button Height="34" Margin="0,0,0,0"
+                    Content="적용(Pi)"
+                    Command="{Binding PresetApplyCommand}"
+                    IsEnabled="{Binding IsPresetApplyEnabled}"
+                    FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- 3) Save -->
+                <Border Background="#F6F6F6" CornerRadius="6" Padding="10">
+                    <StackPanel>
+                        <TextBlock Text="저장" FontWeight="SemiBold" Margin="0,0,0,8"/>
+
+                        <TextBlock Text="파일명" FontSize="11" Opacity="0.75" Margin="0,0,0,4"/>
+
+                        <TextBox Height="26" Margin="0,0,0,8"
+                     VerticalContentAlignment="Center"
+                     Text="{Binding PresetNewName, UpdateSourceTrigger=PropertyChanged}"/>
+
+                        <Button Height="38" Margin="0,0,0,6"
+                    Content="저장"
+                    Command="{Binding PresetSaveCommand}"
+                    IsEnabled="{Binding IsPresetSaveEnabled}"
+                    FontWeight="SemiBold"/>
+
+                        <CheckBox Content="저장 후(해당 프리셋) 즉시 적용"
+                      FontSize="10"
+                      IsChecked="{Binding ApplyAlso}"/>
+                    </StackPanel>
+                </Border>
 
             </StackPanel>
         </Grid>

@@ -1,49 +1,67 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace MacroGUI.ViewModels
 {
-    public sealed class MacroVM
+    public sealed class MacroVM : INotifyPropertyChanged
     {
-        public string Name { get; }
+        private string _name;
+        public string Name
+        {
+            get { return _name; }
+            set
+            {
+                if (_name != value)
+                {
+                    _name = value ?? string.Empty;
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Name)));
+                }
+            }
+        }
+
+        private string _memo = string.Empty;
+        public string Memo
+        {
+            get => _memo;
+            set
+            {
+                if (_memo != value)
+                {
+                    _memo = value ?? string.Empty;
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Memo)));
+                }
+            }
+        }
+
+        // ✅ trigger.keys 저장용
+        public ObservableCollection<string> TriggerKeys { get; } = new ObservableCollection<string>();
+
+        // ✅ UI 표시용: "ALT + A" / "-" 
+        public string TriggerText
+        {
+            get
+            {
+                if (TriggerKeys.Count <= 0)
+                    return "-";
+
+                return string.Join(" + ", TriggerKeys);
+            }
+        }
 
         public ObservableCollection<MacroStepVM> Steps { get; } = new ObservableCollection<MacroStepVM>();
 
         public MacroVM(string name)
         {
-            Name = name;
+            _name = name ?? string.Empty;
+            TriggerKeys.CollectionChanged += (s, e) =>
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(TriggerText)));
         }
+        public event PropertyChangedEventHandler? PropertyChanged;
 
-        public static MacroVM CreateDefault1()
-        {
-            MacroVM m = new MacroVM("매크로1");
-            m.Steps.Add(new MacroStepVM("Delay", "-", 300));
-            m.Steps.Add(new MacroStepVM("KeyDown", "LEFT", 0));
-            m.Steps.Add(new MacroStepVM("Tap", "C", 50));
-            m.Steps.Add(new MacroStepVM("KeyUp", "LEFT", 0));
-            return m;
-        }
-
-        public static MacroVM CreateDefault2()
-        {
-            MacroVM m = new MacroVM("매크로2");
-            m.Steps.Add(new MacroStepVM("Tap", "A", 50));
-            m.Steps.Add(new MacroStepVM("Delay", "-", 200));
-            m.Steps.Add(new MacroStepVM("Tap", "S", 50));
-            return m;
-        }
-
-        public static MacroVM CreateDefault3()
-        {
-            MacroVM m = new MacroVM("매크로3");
-            m.Steps.Add(new MacroStepVM("Tap", "D", 50));
-            m.Steps.Add(new MacroStepVM("Delay", "-", 150));
-            m.Steps.Add(new MacroStepVM("Tap", "F", 50));
-            return m;
-        }
     }
 }

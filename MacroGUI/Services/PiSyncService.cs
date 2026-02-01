@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -18,7 +19,7 @@ namespace MacroGUI.Services
         private const string MacrosPath = "/opt/bong_macro/macros.json";
         private const string MacrosTmpPath = "/opt/bong_macro/macros.json.tmp";
         private const string ActivePath = "/opt/bong_macro/macros.json";
-        private const string PresetGlob = "/opt/bong_macro/macros_*.json";
+        private const string PresetGlob = "/opt/bong_macro/macros*.json";
 
         private readonly SshCommandService _ssh;
         private bool _initialized;
@@ -76,6 +77,36 @@ namespace MacroGUI.Services
             LastMessage = $"Loaded: {Macros.Count} macros";
         }
 
+        public async Task RefreshAsync(string remotePath, CancellationToken ct)
+        {
+            // 기존 RefreshAsync 내부에서 쓰던 cat 대상만 remotePath로 바꿔서 실행
+            SshCommandResult result = await _ssh.RunAsync($"cat {remotePath}", 3000, ct);
+
+            if (!result.Success)
+            {
+                LastMessage = $"PI ERR({result.ExitCode}): {result.StdErr}";
+                return;
+            }
+
+            List<MacroVM> list;
+            try
+            {
+                list = MacroJsonCodec.DeserializeMacros(result.StdOut);
+            }
+            catch (Exception ex)
+            {
+                LastMessage = $"JSON PARSE ERR: {ex.Message}";
+                return;
+            }
+
+            // ✅ 성공했을 때만 반영(실패 시 기존 유지)
+            Macros.Clear();
+            foreach (MacroVM m in list)
+                Macros.Add(m);
+
+            LastMessage = $"Loaded: {Macros.Count} macros";
+        }
+
         public async Task SaveMacrosAsync(CancellationToken ct)
         {
             string json;
@@ -102,7 +133,6 @@ namespace MacroGUI.Services
                 LastMessage = $"SAVE ERR({result.ExitCode}): {result.StdErr}";
                 return;
             }
-
             LastMessage = $"Saved: {Macros.Count} macros";
         }
         public async Task<List<string>> ListPresetFilesAsync(CancellationToken ct)
@@ -165,29 +195,39 @@ namespace MacroGUI.Services
             LastMessage = $"Loaded preset: {presetFileName} ({Macros.Count} macros)";
         }
 
-        public async Task ApplyPresetAsync(string presetFileName, CancellationToken ct)
+        public async Task ApplyPresetAsync(string selectedPresetFile, CancellationToken ct)
         {
-            string src = $"{MacrosDir}/{presetFileName}";
-            string cmd = $"cp \"{src}\" \"{ActivePath}\"";
-
-            SshCommandResult result = await _ssh.RunAsync(cmd, 3000, ct);
-            if (!result.Success)
+            if (string.IsNullOrWhiteSpace(selectedPresetFile))
             {
-                LastMessage = $"APPLY ERR({result.ExitCode}): {result.StdErr}";
+                LastMessage = "apply failed: empty preset";
                 return;
             }
 
-            LastMessage = $"Applied preset to macros.json: {presetFileName}";
+            string? name = ExtractPresetName(selectedPresetFile); // macros_ / .json 제거
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                LastMessage = $"apply failed: invalid preset file: {selectedPresetFile}";
+                return;
+            }
+
+            // FIFO에 명령 쓰기 (따옴표/escape 최소)
+            SshCommandResult r = await _ssh.RunWithInputAsync(
+                "cat > /tmp/proxykbd_cmd",
+                $"load {name}\n",
+                3000,
+                ct);
+
+            if (!r.Success)
+            {
+                LastMessage = $"PI ERR({r.ExitCode}): {r.StdErr}";
+                return;
+            }
+
+            LastMessage = $"Applied: {name}";
         }
 
         public async Task SavePresetAsync(string presetFileName, bool applyAlso, CancellationToken ct)
         {
-            // 파일명 방어(최소)
-            if (string.IsNullOrWhiteSpace(presetFileName) || !presetFileName.StartsWith("macros_", StringComparison.OrdinalIgnoreCase) || !presetFileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
-            {
-                LastMessage = "SAVE ERR: preset name must be macros_*.json";
-                return;
-            }
 
             string json;
             try
@@ -233,6 +273,64 @@ namespace MacroGUI.Services
         {
             // 연결 끊겼다 다시 붙을 때, 다시 InitOnce 하려면 필요
             _initialized = false;
+        }
+
+        private static string? ExtractPresetName(string fileName)
+        {
+            if (string.IsNullOrWhiteSpace(fileName))
+                return null;
+
+            string s = Path.GetFileName(fileName);
+
+            // ✅ default 처리
+            if (string.Equals(s, "macros.json", StringComparison.OrdinalIgnoreCase))
+                return "default";
+
+            if (s.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                s = s.Substring(0, s.Length - 5);
+
+            if (s.StartsWith("macros_", StringComparison.OrdinalIgnoreCase))
+                s = s.Substring("macros_".Length);
+
+            return string.IsNullOrWhiteSpace(s) ? null : s;
+        }
+
+        public async Task DeletePresetAsync(string presetFileName, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(presetFileName))
+            {
+                LastMessage = "DELETE ERR: empty preset name";
+                return;
+            }
+
+            // 🔒 보호 프리셋
+            if (IsProtectedPreset(presetFileName))
+            {
+                LastMessage = $"DELETE BLOCKED: {presetFileName}";
+                return;
+            }
+
+            string path = $"{MacrosDir}/{presetFileName}";
+
+            SshCommandResult r = await _ssh.RunAsync(
+                $"rm -f \"{path}\"",
+                3000,
+                ct
+            );
+
+            if (!r.Success)
+            {
+                LastMessage = $"DELETE ERR({r.ExitCode}): {r.StdErr}";
+                return;
+            }
+
+            LastMessage = $"Deleted preset: {presetFileName}";
+        }
+
+        private static bool IsProtectedPreset(string fileName)
+        {
+            return fileName.Equals("macros_active.json", StringComparison.OrdinalIgnoreCase)
+                || fileName.Equals("macros.json", StringComparison.OrdinalIgnoreCase);
         }
     }
 }
